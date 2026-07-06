@@ -61,8 +61,9 @@ All local state lives **inside this folder** and is gitignored:
   year's file is enough.
 - **Column 1 (Betriebliche Tätigkeiten):** Graph `/me/calendarView`; events
   with the same subject are merged, durations summed as German decimal
-  hours (`18,00`). Durations are clipped to the week; all-day events count
-  7,6h per covered weekday; school-block events are excluded.
+  hours (`18,00`). Durations are clipped to the week; a single event is
+  capped at 8h (merged totals are unlimited); all-day events count 7,6h
+  per covered weekday; school-block events are excluded.
 - **Column 2 (Unterweisungen / Schulungen):** calendar events tagged with
   the Outlook category **Onboarding**. If you want Unterweisungen or
   Schulungen to appear in column 2 of the report, mark those calendar

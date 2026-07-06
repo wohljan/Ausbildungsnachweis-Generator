@@ -41,6 +41,10 @@ SCHOOL_KEYWORDS = (
 # Berufsschule blocks, ...): 38h week / 5 days - matches the old reports.
 ALL_DAY_MINUTES_PER_WEEKDAY = 456  # 7.6h
 
+# A single calendar event never counts more than 8 hours; merged totals of
+# several events are unlimited.
+MAX_MINUTES_PER_EVENT = 480  # 8h
+
 # The four day-status columns of the form, in x-position (left->right) order.
 STATUS_BUERO = "Büro"
 STATUS_HOMEOFFICE = "Homeoffice"
@@ -318,10 +322,11 @@ def process_events(
     columns; calendar events refine it (oof, Berufsschule).
 
     Durations are clipped to the requested date range (multi-week events
-    only count the covered part). All-day events are credited with 7,6h per
-    covered weekday (38h/week convention). Events matching SCHOOL_KEYWORDS
-    drive the Berufsschule day status but are not listed as activities -
-    the school timetable (column 3) covers them.
+    only count the covered part) and a single event is capped at 8h -
+    merged totals of several events are unlimited. All-day events are
+    credited with 7,6h per covered weekday (38h/week convention). Events
+    matching SCHOOL_KEYWORDS drive the Berufsschule day status but are not
+    listed as activities - the school timetable (column 3) covers them.
     """
     work_locations = work_locations or {}
     window_start = datetime.combine(start_date, datetime.min.time())
@@ -373,7 +378,8 @@ def process_events(
             minutes = ALL_DAY_MINUTES_PER_WEEKDAY * weekdays
         else:
             overlap = min(end, window_end) - max(start, window_start)
-            minutes = round(overlap.total_seconds() / 60)
+            # A single event is capped at 8h; merged totals are unlimited.
+            minutes = min(round(overlap.total_seconds() / 60), MAX_MINUTES_PER_EVENT)
         if minutes <= 0:
             continue
 
