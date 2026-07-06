@@ -1,0 +1,22 @@
+# Virtual environments
+.venv/
+venv/
+
+# Python artifacts
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+dist/
+
+# PDFs (contain personal / employer data - never publish)
+*.pdf
+
+# Secrets / local credentials (never commit)
+.credentials.json
+.msal_cache.bin
+*.secret*
+
+# Local tooling
+.pytest_cache/
+.mypy_cache/
