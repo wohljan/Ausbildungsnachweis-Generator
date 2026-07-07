@@ -34,7 +34,7 @@ python3 -m venv .venv
 
 For privacy, portability, and environment-specific reasons, the following files and folders are **not** part of this repository:
 
-1. **`**template.pdf`**  
+1. **`template.pdf`**  
    The PDF template is excluded via `.gitignore`. Add a copy of any existing report PDF and rename it to `template.pdf`. The application overwrites all form fields when generating reports.
 
 2. **Data Directories**  
