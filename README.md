@@ -2,9 +2,7 @@
 
 MCP server that turns Microsoft Graph calendar events, the
 Ausbildungseinsatzplan Excel files and WebUntis school data into filled
-weekly training-report (Ausbildungsnachweis) PDFs. Python port of the
-original PowerShell/Excel workflow, writing directly into the official
-AcroForm PDF template. Nothing personal is hardcoded - everything comes
+weekly training-report (Ausbildungsnachweis) PDFs. Nothing personal is hardcoded, everything comes
 from a local profile created by the `initialise` tool.
 
 ## Tools
