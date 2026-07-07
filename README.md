@@ -54,7 +54,7 @@ Register the server in your MCP client (VS Code: Command Palette ->
   "servers": {
     "ausbildungsnachweis": {
       "type": "stdio",
-      "command": "/path/to/Ausbildungsnachweis-Generator/.venv/Scripts/ausbildungsnachweis-mcp"
+      "command": "/path/to/Ausbildungsnachweis-Generator/.venv/Scripts/ausbildungsnachweis-mcp.exe"
     }
   }
 }
