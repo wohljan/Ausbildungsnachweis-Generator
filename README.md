@@ -28,20 +28,22 @@ from a local profile created by the `initialise` tool.
 ```bash
 git clone https://github.com/wohljan/Ausbildungsnachweis-Generator.git
 cd Ausbildungsnachweis-Generator
-python3 -m venv .venv          # Python 3.10+
+python3 -m venv .venv
 .venv/bin/pip install -e .
 ```
 
-Two things the repository does **not** contain:
+For privacy, portability, and environment-specific reasons, the following files and folders are **not** part of this repository:
 
-1. **Template PDF** - `template.pdf` is gitignored (filled reports contain
-   personal data). Copy any existing report PDF into this folder as
-   `template.pdf`; every form field is overwritten during filling, so any
-   of them works.
-2. **The data folders** - the report output folder, the Einsatzplan folder
-   and the optional submission folder must exist on the device (OneDrive/
-   Teams sync set up or network paths reachable). `initialise` validates
-   them and tells you what is wrong.
+1. **`**template.pdf`**  
+   The PDF template is excluded via `.gitignore`. Add a copy of any existing report PDF and rename it to `template.pdf`. The application overwrites all form fields when generating reports.
+
+2. **Data Directories**  
+   Output, Einsatzplan, and optional submission directories are not tracked. These locations must exist locally, either through OneDrive/Teams synchronization or accessible network shares. Path validation is performed during `initialise`.
+
+3. **Ausbildungseinsatzplan**  
+   The Ausbildungseinsatzplan is not included and must be provided separately. It is used to generate a CSV that enables:
+   - Automatic Berufsschul week detection (Untis-only, Outlook check skipped)
+   - Automatic department detection (Outlook-only, Untis check skipped)
 
 Register the server in your MCP client (VS Code: Command Palette ->
 "MCP: Open User Configuration"):
