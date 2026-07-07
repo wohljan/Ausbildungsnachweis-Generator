@@ -60,10 +60,6 @@ Register the server in your MCP client (VS Code: Command Palette ->
 }
 ```
 
-(On Windows-native VS Code with the project inside WSL, use
-`"command": "wsl.exe"`, `"args": ["-e", "/path/to/.../ausbildungsnachweis-mcp"]`.
-For opencode, put the same command under `mcp` in `opencode.jsonc`.)
-
 Then run the `initialise` tool once via the MCP client with:
 
 - `name` - trainee name exactly as in the Einsatzplan (also used on the PDF)
