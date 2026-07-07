@@ -9,6 +9,8 @@ device-based Conditional Access policies are satisfied.
 
 from __future__ import annotations
 
+import base64
+import json
 import os
 import subprocess
 import threading
@@ -67,6 +69,10 @@ PROJECT_DIR = Path(__file__).resolve().parents[2]
 
 CACHE_DIR = Path(os.environ.get("AN_CACHE_DIR", str(PROJECT_DIR)))
 CACHE_FILE = CACHE_DIR / ".msal_cache.bin"
+# Manual-token fallback (a bearer token pasted from Graph Explorer). Valid
+# for about an hour; refreshed by re-pasting. Kept separate from the MSAL
+# cache because these tokens have no refresh capability.
+RAW_TOKEN_FILE = CACHE_DIR / ".raw_token.json"
 
 _lock = threading.Lock()
 _app: msal.PublicClientApplication | None = None
@@ -101,7 +107,10 @@ def _get_app() -> msal.PublicClientApplication:
 
 
 def get_token_silent() -> str | None:
-    """Return an access token from the cache (refreshing if needed), or None."""
+    """Return an access token (raw fallback first, then MSAL cache) or None."""
+    raw = _load_raw_token()
+    if raw:
+        return raw
     app = _get_app()
     accounts = app.get_accounts()
     if not accounts:
@@ -112,15 +121,120 @@ def get_token_silent() -> str | None:
     return None
 
 
+# ---------------------------------------------------------------------------
+# Manual-token fallback (Graph Explorer paste, hourly)
+# ---------------------------------------------------------------------------
+
+# 60s safety margin so we don't hand out a token that will die mid-request.
+_RAW_TOKEN_LEEWAY = 60
+
+
+def _decode_jwt_expiry(token: str) -> int:
+    """Return the exp claim (unix seconds) of a JWT, or 0 if unparseable."""
+    try:
+        payload = token.split(".")[1]
+        payload += "=" * (-len(payload) % 4)
+        data = json.loads(base64.urlsafe_b64decode(payload))
+        return int(data.get("exp") or 0)
+    except Exception:
+        return 0
+
+
+def _load_raw_token() -> str | None:
+    if not RAW_TOKEN_FILE.exists():
+        return None
+    try:
+        data = json.loads(RAW_TOKEN_FILE.read_text())
+    except (OSError, json.JSONDecodeError):
+        return None
+    token = data.get("access_token")
+    expires_at = int(data.get("expires_at") or 0)
+    if not token or expires_at - _RAW_TOKEN_LEEWAY < time.time():
+        return None
+    return token
+
+
+def store_raw_token(access_token: str) -> dict:
+    """Persist a bearer token from Graph Explorer for silent use until expiry."""
+    token = access_token.strip()
+    if token.lower().startswith("bearer "):
+        token = token[7:].strip()
+    if not token:
+        raise ValueError("access_token is empty.")
+
+    expires_at = _decode_jwt_expiry(token)
+    if not expires_at:
+        # Fall back to a conservative 55-minute lifetime if the JWT can't be
+        # decoded (defensive - Graph tokens are always JWTs in practice).
+        expires_at = int(time.time()) + 55 * 60
+
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    RAW_TOKEN_FILE.write_text(
+        json.dumps({"access_token": token, "expires_at": expires_at})
+    )
+    os.chmod(RAW_TOKEN_FILE, 0o600)
+    return {
+        "expires_at": expires_at,
+        "expires_in_minutes": max(0, (expires_at - int(time.time())) // 60),
+    }
+
+
+def clear_raw_token() -> bool:
+    if RAW_TOKEN_FILE.exists():
+        RAW_TOKEN_FILE.unlink()
+        return True
+    return False
+
+
 def get_token() -> str:
     """Return a token or raise with instructions to run the login tool."""
     token = get_token_silent()
     if token:
         return token
+    # If a previous interactive login was blocked by the tenant, surface that.
+    if _pending.get("admin_consent_required"):
+        raise PermissionError(
+            "No usable Microsoft Graph token. "
+            + (_pending.get("help") or _admin_consent_help())
+        )
     raise PermissionError(
-        "No cached Microsoft Graph credentials. Run the 'login' tool first, "
-        "or pass an access_token argument explicitly."
+        "No cached Microsoft Graph credentials. Run the 'login' tool "
+        "(method='interactive'), or paste a Graph Explorer token via "
+        "login(method='token', access_token='...') for a one-hour fallback."
     )
+
+
+# Error codes that indicate the tenant blocks user consent for our app.
+# AADSTS65001 = user/admin consent required; AADSTS900971 similar.
+_ADMIN_CONSENT_ERRORS = ("AADSTS65001", "AADSTS900971", "consent_required")
+
+
+def _admin_consent_help() -> str:
+    """Human-readable instructions for requesting tenant admin consent."""
+    client_id = os.environ.get("AN_CLIENT_ID", DEFAULT_CLIENT_ID)
+    tenant = os.environ.get("AN_TENANT_ID", DEFAULT_TENANT)
+    scopes = " ".join(SCOPES)
+    admin_consent_url = (
+        f"https://login.microsoftonline.com/{tenant}/adminconsent"
+        f"?client_id={client_id}"
+    )
+    return (
+        "The tenant requires admin approval for this app - ask your IT admin "
+        f"to grant tenant-wide consent for:\n"
+        f"  App name : Microsoft Graph Command Line Tools\n"
+        f"  Client ID: {client_id}\n"
+        f"  Scopes   : {scopes}\n"
+        f"  Consent  : {admin_consent_url}\n"
+        "As an interim, use login(method='token', access_token='<token from "
+        "Graph Explorer>') to unblock report generation for one hour."
+    )
+
+
+def _looks_like_consent_error(text: str) -> bool:
+    if not text:
+        return False
+    low = text.lower()
+    return any(m.lower() in low for m in _ADMIN_CONSENT_ERRORS)
 
 
 def start_interactive_login(timeout: int = 300) -> dict:
@@ -155,6 +269,9 @@ def start_interactive_login(timeout: int = 300) -> dict:
         except Exception as exc:  # noqa: BLE001
             _pending["status"] = "failed"
             _pending["error"] = str(exc)
+            if _looks_like_consent_error(str(exc)):
+                _pending["admin_consent_required"] = True
+                _pending["help"] = _admin_consent_help()
             return
         if result and "access_token" in result:
             _pending["status"] = "completed"
@@ -163,10 +280,12 @@ def start_interactive_login(timeout: int = 300) -> dict:
             )
         else:
             _pending["status"] = "failed"
-            _pending["error"] = (
-                f"{(result or {}).get('error')}: "
-                f"{(result or {}).get('error_description')}"
-            )
+            err = (result or {}).get("error")
+            desc = (result or {}).get("error_description") or ""
+            _pending["error"] = f"{err}: {desc}"
+            if _looks_like_consent_error(f"{err} {desc}"):
+                _pending["admin_consent_required"] = True
+                _pending["help"] = _admin_consent_help()
 
     threading.Thread(target=_run, daemon=True).start()
 
@@ -215,10 +334,12 @@ def start_device_login() -> dict:
             )
         else:
             _pending["status"] = "failed"
-            _pending["error"] = (
-                f"{(result or {}).get('error')}: "
-                f"{(result or {}).get('error_description')}"
-            )
+            err = (result or {}).get("error")
+            desc = (result or {}).get("error_description") or ""
+            _pending["error"] = f"{err}: {desc}"
+            if _looks_like_consent_error(f"{err} {desc}"):
+                _pending["admin_consent_required"] = True
+                _pending["help"] = _admin_consent_help()
 
     threading.Thread(target=_poll, daemon=True).start()
 
@@ -246,12 +367,27 @@ def auth_status() -> dict:
         "accounts": [a.get("username") for a in accounts],
         "silent_token_available": silent_ok,
     }
+
+    # Manual-token fallback state.
+    raw_expiry = 0
+    if RAW_TOKEN_FILE.exists():
+        try:
+            raw_expiry = int(json.loads(RAW_TOKEN_FILE.read_text()).get("expires_at") or 0)
+        except (OSError, json.JSONDecodeError):
+            raw_expiry = 0
+    if raw_expiry:
+        status["manual_token"] = {
+            "present": True,
+            "expires_in_minutes": max(0, (raw_expiry - int(time.time())) // 60),
+            "expired": raw_expiry - _RAW_TOKEN_LEEWAY < time.time(),
+        }
+
     if _pending:
         status["pending_login"] = {
             k: _pending[k]
             for k in (
                 "status", "method", "user_code", "verification_uri",
-                "account", "error",
+                "account", "error", "admin_consent_required", "help",
             )
             if k in _pending
         }
@@ -259,10 +395,11 @@ def auth_status() -> dict:
 
 
 def logout() -> dict:
-    """Remove all cached accounts/tokens."""
+    """Remove all cached accounts/tokens (MSAL cache + manual token)."""
     app = _get_app()
     removed = []
     for account in app.get_accounts():
         app.remove_account(account)
         removed.append(account.get("username"))
-    return {"removed_accounts": removed}
+    raw_cleared = clear_raw_token()
+    return {"removed_accounts": removed, "manual_token_cleared": raw_cleared}

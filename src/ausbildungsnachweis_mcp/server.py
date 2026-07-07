@@ -137,7 +137,7 @@ def inspect_template(pdf_path: str) -> dict:
 
 
 @mcp.tool()
-def login(method: str = "interactive") -> dict:
+def login(method: str = "interactive", access_token: str = "") -> dict:
     """Start a Microsoft sign-in for Graph access.
 
     method="interactive" (default): opens the sign-in page in your Windows
@@ -148,9 +148,32 @@ def login(method: str = "interactive") -> dict:
     method="device": classic device-code flow - returns a URL and a code to
     enter manually.
 
+    method="token": store a raw bearer token pasted from Graph Explorer
+    (https://developer.microsoft.com/graph/graph-explorer) as an
+    approximately one-hour fallback. Useful when the tenant requires admin
+    approval and interactive login therefore fails. Requires the
+    ``access_token`` argument.
+
     The resulting refresh token is cached locally, so subsequent calls work
     without any token for months. Check progress with 'auth_status'.
     """
+    if method == "token":
+        if not access_token:
+            raise ValueError(
+                "method='token' requires an access_token (paste from "
+                "https://developer.microsoft.com/graph/graph-explorer, tab "
+                "'Access token')."
+            )
+        info = auth.store_raw_token(access_token)
+        return {
+            "method": "token",
+            "expires_in_minutes": info["expires_in_minutes"],
+            "message": (
+                "Manual token stored. It expires in "
+                f"{info['expires_in_minutes']} minutes; re-paste a fresh "
+                "token from Graph Explorer to extend."
+            ),
+        }
     if method == "device":
         return auth.start_device_login()
     return auth.start_interactive_login()

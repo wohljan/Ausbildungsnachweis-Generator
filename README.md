@@ -126,6 +126,31 @@ All local state lives **inside this folder** and is gitignored:
   number that does not match the week raises an error.
 - Output files are named `NNN_Vorname_Nachname.pdf`.
 
+## Corporate tenant: Microsoft admin consent
+
+Interactive login uses the pre-built Microsoft "Graph Command Line Tools"
+app (client `14d82eec-204b-4c2f-b7e8-296a70dab67e`), which asks the user
+for consent to `Calendars.Read` and `Files.ReadWrite`. Many corporate
+tenants block user consent for third-party apps - the sign-in page then
+shows "Need admin approval" and blocks the flow.
+
+Two paths:
+
+1. **Ask IT to grant tenant-wide admin consent** (one-time, permanent
+   fix). Send them the admin-consent URL that `login` returns on failure;
+   equivalent Azure Portal path: Enterprise Applications -> Microsoft
+   Graph Command Line Tools -> Permissions -> Grant admin consent. After
+   that any user can run `login` normally.
+2. **Interim: paste a token from Graph Explorer** - visit
+   <https://developer.microsoft.com/graph/graph-explorer>, sign in, open
+   the *Access token* tab, copy the token, then run
+   `login(method="token", access_token="<paste>")`. It lasts ~1h and the
+   server uses it silently until expiry; re-paste to extend.
+
+`auth_status` shows both states (cached MSAL account, manual-token
+expiry) and includes the admin-consent instructions when the last login
+was blocked.
+
 ## Configuration
 
 No env vars required - the profile covers everything. Env overrides exist
