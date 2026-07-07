@@ -22,12 +22,11 @@ from __future__ import annotations
 
 import os
 import re
-import shutil
 from datetime import date, timedelta
 
 from mcp.server.fastmcp import FastMCP
 
-from . import auth, credentials, einsatzplan, graph, pdffill, schedule, untis
+from . import auth, credentials, einsatzplan, graph, pdffill, schedule, sharepoint, untis
 from .processing import (
     WEEKDAY_FIELD_NAMES,
     ProcessedEvents,
@@ -227,7 +226,7 @@ async def initialise(
     output_dir: str,
     einsatzplan_dir: str,
     template_path: str = "",
-    submit_dir: str = "",
+    submit_url: str = "",
     untis_username: str = "",
     untis_password: str = "",
     untis_server: str = "",
@@ -254,9 +253,9 @@ async def initialise(
             files (the rotation source).
         template_path: Template PDF; defaults to template.pdf in the repo
             folder if present.
-        submit_dir: Optional submission folder (e.g. a Teams/OneDrive
-            "Eingereicht" folder) - every generated report is copied there
-            as well.
+        submit_url: Optional SharePoint folder URL (e.g. the Teams
+            "Eingereicht" library folder) - every generated report is
+            uploaded there via Microsoft Graph.
         untis_username / untis_password: Optional WebUntis credentials
             (validated live before saving).
         untis_server / untis_school: WebUntis server + school login name
@@ -268,8 +267,6 @@ async def initialise(
         raise ValueError(f"output_dir does not exist: {output_dir}")
     if not os.path.isdir(einsatzplan_dir):
         raise ValueError(f"einsatzplan_dir does not exist: {einsatzplan_dir}")
-    if submit_dir and not os.path.isdir(submit_dir):
-        raise ValueError(f"submit_dir does not exist: {submit_dir}")
 
     if not template_path:
         candidate = credentials.PROJECT_DIR / "template.pdf"
@@ -281,7 +278,7 @@ async def initialise(
         "output_dir": output_dir,
         "template_path": template_path,
         "einsatzplan_dir": einsatzplan_dir,
-        "submit_dir": submit_dir,
+        "submit_url": submit_url,
     })
 
     result: dict = {
@@ -404,10 +401,9 @@ async def setup_status() -> dict:
         },
         "template": {"ok": template_ok, "path": profile["template_path"] or None},
         "output_dir": {"ok": output_ok, "path": profile["output_dir"] or None},
-        "submit_dir": {
-            "configured": bool(profile["submit_dir"]),
-            "ok": not profile["submit_dir"] or os.path.isdir(profile["submit_dir"]),
-            "path": profile["submit_dir"] or None,
+        "submit": {
+            "configured": bool(profile["submit_url"]),
+            "url": profile["submit_url"] or None,
         },
         "ready": not missing,
         "missing": missing,
@@ -693,17 +689,17 @@ async def generate_report(
     )
     fill_result = pdffill.fill_pdf(template, output_path, data)
 
-    # Copy to the submission folder (e.g. Teams "Eingereicht") if configured.
+    # Upload to the SharePoint submission folder (e.g. Teams "Eingereicht")
+    # if configured; fail-soft so the report generation itself never breaks.
     submitted_to = None
     submit_note = None
-    submit_dir = credentials.get_profile()["submit_dir"]
-    if submit_dir:
+    if credentials.get_profile()["submit_url"]:
         try:
-            submitted_to = shutil.copy2(
-                output_path, os.path.join(submit_dir, os.path.basename(output_path))
+            submitted_to = await sharepoint.upload_report(
+                output_path, _resolve_token(access_token)
             )
-        except OSError as exc:
-            submit_note = f"Copy to submit_dir failed: {exc}"
+        except Exception as exc:  # noqa: BLE001
+            submit_note = f"SharePoint upload failed: {exc}"
 
     return {
         "report_number": number,

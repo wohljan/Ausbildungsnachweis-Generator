@@ -57,7 +57,9 @@ if os.path.exists(_POWERSHELL):
 # well-known public client that is pre-consented in many tenants.
 DEFAULT_CLIENT_ID = "14d82eec-204b-4c2f-b7e8-296a70dab67e"
 DEFAULT_TENANT = "organizations"
-SCOPES = ["Calendars.Read"]
+# Calendars for events/work plan, Files.ReadWrite for the SharePoint upload
+# of finished reports (user-consentable, no admin approval needed).
+SCOPES = ["Calendars.Read", "Files.ReadWrite"]
 
 # Project root (the ausbildungsnachweis/ folder): everything - token cache,
 # credentials - lives in one place, excluded from git via .gitignore.

@@ -70,8 +70,10 @@ Then run the `initialise` tool once via the MCP client with:
 - `einsatzplan_dir` - folder containing the `Ausbildungseinsatzplan*.xlsx`
   files (the rotation source)
 - `template_path` - template PDF (defaults to `template.pdf` in this folder)
-- `submit_dir` - optional submission folder (e.g. a Teams/OneDrive
-  "Eingereicht" folder); every generated report is also copied there
+- `submit_url` - optional SharePoint folder URL (e.g. the Teams
+  "Eingereicht" library folder); every generated report is uploaded there
+  directly via Microsoft Graph (`Files.ReadWrite` delegated scope, part of
+  the standard login - no admin consent needed)
 - optionally `untis_username` / `untis_password` / `untis_server` /
   `untis_school`
 
@@ -126,7 +128,7 @@ All local state lives **inside this folder** and is gitignored:
 
 No env vars required - the profile covers everything. Env overrides exist
 for all settings: `AN_NAME`, `AN_TRAINING_START`, `AN_OUTPUT_DIR`,
-`AN_TEMPLATE_PATH`, `AN_EINSATZPLAN_DIR`, `AN_SUBMIT_DIR`,
+`AN_TEMPLATE_PATH`, `AN_EINSATZPLAN_DIR`, `AN_SUBMIT_URL`,
 `AN_NUMBER_ANCHOR`, `AN_UNTIS_SERVER`, `AN_UNTIS_SCHOOL`, `AN_UNTIS_USER`,
 `AN_UNTIS_PASSWORD`, `AN_CLIENT_ID`, `AN_TENANT_ID`, `AN_CACHE_DIR`.
 

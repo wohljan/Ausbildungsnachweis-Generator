@@ -64,8 +64,8 @@ def get_profile() -> dict:
         "einsatzplan_dir": os.environ.get("AN_EINSATZPLAN_DIR")
         or stored.get("einsatzplan_dir")
         or "",
-        "submit_dir": os.environ.get("AN_SUBMIT_DIR")
-        or stored.get("submit_dir")
+        "submit_url": os.environ.get("AN_SUBMIT_URL")
+        or stored.get("submit_url")
         or "",
     }
 
