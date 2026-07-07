@@ -85,6 +85,17 @@ def _parse_workbook(path: Path, name: str) -> dict[date, str]:
     return weeks
 
 
+def source_files() -> list[str]:
+    """The plan workbooks that would be parsed (for status/debug output)."""
+    directory = plan_dir()
+    if not directory.is_dir():
+        return []
+    return [
+        p.name for p in sorted(directory.glob("*.xlsx"))
+        if not p.name.startswith("~$")
+    ]
+
+
 def load_rotation(name: str) -> dict[date, str]:
     """Merged week->department mapping for ``name`` from all plan files.
 

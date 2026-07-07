@@ -444,6 +444,103 @@ async def fetch_school_lessons(start_date: str, end_date: str) -> dict:
 
 
 @mcp.tool()
+def fetch_rotation(start_date: str = "", end_date: str = "") -> dict:
+    """Show the department rotation parsed from the Ausbildungseinsatzplan.
+
+    Without arguments the entire merged plan (all xlsx files) is returned;
+    with a date range only the covered weeks. Local overrides set via
+    'set_department' are applied and marked.
+
+    Args:
+        start_date: Optional range start (dd/mm/yy, dd.mm.yyyy or yyyy-mm-dd).
+        end_date: Optional range end; defaults to start_date's week.
+
+    Returns:
+        Per week: Monday date, department, report number, training year,
+        override flag - plus a summary (files, coverage, departments).
+    """
+    name = credentials.require_name()
+    plan = einsatzplan.load_rotation(name)
+    overrides = schedule.get_overrides()
+    merged = {**plan, **overrides}
+    if not merged:
+        raise ValueError(
+            f"No rotation data for '{name}' - check the Einsatzplan folder "
+            f"({einsatzplan.plan_dir()})."
+        )
+
+    weeks = sorted(merged)
+    if start_date:
+        lo = schedule.week_monday(parse_flexible_date(start_date))
+        hi = schedule.week_monday(
+            parse_flexible_date(end_date) if end_date else parse_flexible_date(start_date)
+        )
+        weeks = [w for w in weeks if lo <= w <= hi]
+
+    return {
+        "source_files": einsatzplan.source_files(),
+        "coverage": {
+            "from": min(merged).isoformat(),
+            "to": max(merged).isoformat(),
+            "weeks": len(merged),
+        },
+        "departments": sorted(set(merged.values())),
+        "overridden_weeks": len(overrides),
+        "weeks": [
+            {
+                "week": w.isoformat(),
+                "department": merged[w],
+                "report_number": schedule.expected_report_number(w),
+                "training_year": schedule.training_year(w),
+                "override": w in overrides,
+            }
+            for w in weeks
+        ],
+    }
+
+
+@mcp.tool()
+def set_department(
+    department: str,
+    start_date: str,
+    end_date: str = "",
+) -> dict:
+    """Override the department for all weeks in a time frame.
+
+    The override is stored locally (.credentials.json) and applied on top
+    of the Ausbildungseinsatzplan - the Excel files are never modified.
+    Pass an empty department to remove overrides in the range and fall
+    back to the plan.
+
+    Args:
+        department: Department name (e.g. "Windows Server", "Berufsschule",
+            "Urlaub"); empty string clears existing overrides in the range.
+        start_date: Range start (dd/mm/yy, dd.mm.yyyy or yyyy-mm-dd).
+        end_date: Range end, inclusive; defaults to start_date's week.
+
+    Returns:
+        The affected weeks with their now-effective department.
+    """
+    start = parse_flexible_date(start_date)
+    end = parse_flexible_date(end_date) if end_date else start
+    if end < start:
+        raise ValueError("end_date is before start_date.")
+
+    affected = schedule.set_override(start, end, department.strip())
+    return {
+        "action": "set" if department.strip() else "cleared",
+        "department": department.strip() or None,
+        "weeks": [
+            {
+                "week": w.isoformat(),
+                "department": schedule.department_for_week(w)[0],
+            }
+            for w in affected
+        ],
+    }
+
+
+@mcp.tool()
 async def fetch_events(
     start_date: str,
     end_date: str,

@@ -15,6 +15,8 @@ from a local profile created by the `initialise` tool.
 | `generate_report` | End-to-end: fetch the week's data -> fill PDF |
 | `fetch_events` | Fetch + process Graph events only (returns JSON) |
 | `fetch_school_lessons` | Fetch the WebUntis timetable incl. Lehrstoff |
+| `fetch_rotation` | Show the parsed rotation plan (week -> Abteilung) |
+| `set_department` | Override the Abteilung for a time frame (stored locally) |
 | `fill_report` | Fill the PDF template from data you provide |
 | `inspect_template` | Show fields / day-column mapping of a template PDF |
 | `login` | Microsoft sign-in (browser / device code) |
@@ -92,7 +94,10 @@ All local state lives **inside this folder** and is gitignored:
 - **Abteilung / rotation:** the `Ausbildungseinsatzplan*.xlsx` files (one
   sheet per Lehrjahr, one column per trainee, column A = week; empty cells
   = Berufsschule). All workbooks in the folder are merged, so adding next
-  year's file is enough.
+  year's file is enough. Inspect the parsed plan with `fetch_rotation`;
+  deviations (e.g. a swapped week) are set with `set_department` for any
+  time frame - overrides live in `.credentials.json`, the Excel files are
+  never modified.
 - **Column 1 (Betriebliche Tätigkeiten):** Graph `/me/calendarView`; events
   with the same subject are merged, durations summed as German decimal
   hours (`18,00`). Durations are clipped to the week; all-day events count

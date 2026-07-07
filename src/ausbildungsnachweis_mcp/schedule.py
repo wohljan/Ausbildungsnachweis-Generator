@@ -6,8 +6,9 @@
 * The report number is anchored at the week containing the training start
   (= report 001); override with AN_NUMBER_ANCHOR ("YYYY-MM-DD=N").
 * The Abteilung for a given week comes from the Ausbildungseinsatzplan
-  Excel files (see ``einsatzplan.py``). Weeks missing from the plan yield
-  ``None`` plus a warning.
+  Excel files (see ``einsatzplan.py``), optionally overridden per week via
+  the 'set_department' tool (stored locally, the xlsx stays untouched).
+  Weeks missing from both yield ``None`` plus a warning.
 """
 
 from __future__ import annotations
@@ -33,18 +34,53 @@ def training_year(d: date) -> int:
     return years + 1
 
 
-def _load_rotation() -> tuple[dict[date, str], str]:
-    """Return (rotation, source) from the Ausbildungseinsatzplan files."""
-    name = credentials.get_profile()["name"]
-    if name:
-        plan = einsatzplan.load_rotation(name)
-        if plan:
-            return plan, "Einsatzplan"
-    return {}, "Einsatzplan"
-
-
 def week_monday(d: date) -> date:
     return d - timedelta(days=d.weekday())
+
+
+# ---------------------------------------------------------------------------
+# Local per-week department overrides (never written into the xlsx)
+# ---------------------------------------------------------------------------
+
+def get_overrides() -> dict[date, str]:
+    stored = credentials.load().get("rotation_overrides", {})
+    out = {}
+    for k, v in stored.items():
+        try:
+            out[date.fromisoformat(k)] = v
+        except ValueError:
+            continue
+    return out
+
+
+def set_override(start: date, end: date, department: str) -> list[date]:
+    """Set (or clear, when department is empty) overrides for all weeks in range.
+
+    Returns the affected week Mondays.
+    """
+    data = credentials.load()
+    overrides = data.setdefault("rotation_overrides", {})
+    affected = []
+    monday = week_monday(start)
+    last = week_monday(end)
+    while monday <= last:
+        key = monday.isoformat()
+        if department:
+            overrides[key] = department
+        else:
+            overrides.pop(key, None)
+        affected.append(monday)
+        monday += timedelta(days=7)
+    credentials.save(data)
+    return affected
+
+
+def _load_rotation() -> tuple[dict[date, str], str]:
+    """Return (rotation, source) from the Einsatzplan files + local overrides."""
+    name = credentials.get_profile()["name"]
+    plan = einsatzplan.load_rotation(name) if name else {}
+    plan.update(get_overrides())
+    return plan, "Einsatzplan"
 
 
 def expected_report_number(d: date) -> int:
