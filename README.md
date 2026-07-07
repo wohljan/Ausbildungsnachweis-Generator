@@ -23,12 +23,43 @@ from a local profile created by the `initialise` tool.
 | `auth_status` | Show cached Microsoft account / pending login state |
 | `logout` | Clear cached Microsoft tokens |
 
-## Setup (fresh clone)
+## Setup on a new device
 
 ```bash
-python3 -m venv .venv
+git clone https://github.com/wohljan/Ausbildungsnachweis-Generator.git
+cd Ausbildungsnachweis-Generator
+python3 -m venv .venv          # Python 3.10+
 .venv/bin/pip install -e .
 ```
+
+Two things the repository does **not** contain:
+
+1. **Template PDF** - `template.pdf` is gitignored (filled reports contain
+   personal data). Copy any existing report PDF into this folder as
+   `template.pdf`; every form field is overwritten during filling, so any
+   of them works.
+2. **The data folders** - the report output folder, the Einsatzplan folder
+   and the optional submission folder must exist on the device (OneDrive/
+   Teams sync set up or network paths reachable). `initialise` validates
+   them and tells you what is wrong.
+
+Register the server in your MCP client (VS Code: Command Palette ->
+"MCP: Open User Configuration"):
+
+```json
+{
+  "servers": {
+    "ausbildungsnachweis": {
+      "type": "stdio",
+      "command": "/path/to/Ausbildungsnachweis-Generator/.venv/bin/ausbildungsnachweis-mcp"
+    }
+  }
+}
+```
+
+(On Windows-native VS Code with the project inside WSL, use
+`"command": "wsl.exe"`, `"args": ["-e", "/path/to/.../ausbildungsnachweis-mcp"]`.
+For opencode, put the same command under `mcp` in `opencode.jsonc`.)
 
 Then run the `initialise` tool once via the MCP client with:
 
@@ -47,7 +78,8 @@ Then run the `initialise` tool once via the MCP client with:
 `initialise` validates the name against the Einsatzplan, checks the WebUntis
 login and starts the Microsoft browser sign-in (auth-code flow on the
 managed device satisfies Conditional Access; device-code fails with 530033).
-`setup_status` shows what is still missing.
+`setup_status` shows what is still missing - once it reports `ready: true`,
+report generation works.
 
 All local state lives **inside this folder** and is gitignored:
 `.credentials.json` (profile + WebUntis credentials, chmod 600),
@@ -90,17 +122,7 @@ All local state lives **inside this folder** and is gitignored:
   number that does not match the week raises an error.
 - Output files are named `NNN_Vorname_Nachname.pdf`.
 
-## MCP client configuration
-
-```json
-{
-  "mcpServers": {
-    "ausbildungsnachweis": {
-      "command": "/path/to/ausbildungsnachweis/.venv/bin/ausbildungsnachweis-mcp"
-    }
-  }
-}
-```
+## Configuration
 
 No env vars required - the profile covers everything. Env overrides exist
 for all settings: `AN_NAME`, `AN_TRAINING_START`, `AN_OUTPUT_DIR`,
