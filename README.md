@@ -29,7 +29,7 @@ from a local profile created by the `initialise` tool.
 git clone https://github.com/wohljan/Ausbildungsnachweis-Generator.git
 cd Ausbildungsnachweis-Generator
 python3 -m venv .venv
-.venv/bin/pip install -e .
+.\.venv\Scripts\pip install -e .
 ```
 
 For privacy, portability, and environment-specific reasons, the following files and folders are **not** part of this repository:
