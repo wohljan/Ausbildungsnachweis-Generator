@@ -98,10 +98,15 @@ async def fetch_work_locations(
 
     Fail-soft: any error (API unavailable, permission change, beta removal)
     yields an empty mapping so day statuses fall back to defaults.
+
+    The query window is widened by a week at the start: the beta API drops
+    occurrences near the window's leading edge once they lie in the past
+    (e.g. Monday disappearing when generating mid-week); results are
+    filtered back to the requested range.
     """
     url = (
         f"{GRAPH_BETA}/me/settings/workHoursAndLocations/"
-        f"occurrencesView(startDateTime='{start_date:%Y-%m-%d}T00:00:00',"
+        f"occurrencesView(startDateTime='{start_date - timedelta(days=7):%Y-%m-%d}T00:00:00',"
         f"endDateTime='{end_date + timedelta(days=1):%Y-%m-%d}T00:00:00')"
     )
     headers = {
@@ -127,6 +132,9 @@ async def fetch_work_locations(
         try:
             day = date.fromisoformat(start_str)
         except ValueError:
+            continue
+        # Filter back to the requested range (window is widened, see above).
+        if not (start_date <= day <= end_date):
             continue
         rank = _WORK_LOCATION_RANK.get(loc.lower(), 0)
         if rank == 0:
