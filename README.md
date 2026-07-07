@@ -45,6 +45,7 @@ For privacy, portability, and environment-specific reasons, the following files 
    - Automatic Berufsschul week detection (Untis-only, Outlook check skipped)
    - Automatic department detection (Outlook-only, Untis check skipped)
 
+
 Register the server in your MCP client (VS Code: Command Palette ->
 "MCP: Open User Configuration"):
 
