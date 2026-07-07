@@ -47,7 +47,7 @@ For privacy, portability, and environment-specific reasons, the following files 
 
 
 Register the server in your MCP client (VS Code: Command Palette ->
-"MCP: Open User Configuration"):
+">MCP: Open User Configuration"):
 
 ```json
 {
